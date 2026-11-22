@@ -9,47 +9,995 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Siapkan proyek
+      - name: Tulis proyek KontenKu
         run: |
-          echo "Isi repositori:"
-          ls -la
-          if [ -z "$(find . -name settings.gradle.kts -not -path './.git/*')" ]; then
-            ZIP=$(find . -maxdepth 1 -name '*.zip' | head -n 1)
-            if [ -z "$ZIP" ]; then
-              echo "ERROR: tidak ada file ZIP maupun folder proyek di repositori."
-              echo "Upload KontenKu.zip ke halaman utama repositori, lalu jalankan lagi."
-              exit 1
-            fi
-            echo "Mengekstrak: $ZIP"
-            unzip -q "$ZIP"
-          fi
-          SETTINGS=$(find . -name settings.gradle.kts -not -path './.git/*' | head -n 1)
-          if [ -z "$SETTINGS" ]; then
-            echo "ERROR: settings.gradle.kts tidak ditemukan di dalam proyek."
-            exit 1
-          fi
-          DIR=$(dirname "$SETTINGS")
-          echo "Folder proyek: $DIR"
-          echo "PROJECT_DIR=$DIR" >> "$GITHUB_ENV"
+          mkdir -p "KontenKu/app"
+          cat > "KontenKu/app/build.gradle.kts" <<'KONTEN_EOF'
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+              id("org.jetbrains.kotlin.plugin.compose")
+              id("com.google.devtools.ksp")
+          }
+
+          android {
+              namespace = "com.kontenku.app"
+              compileSdk = 34
+
+              defaultConfig {
+                  applicationId = "com.kontenku.app"
+                  minSdk = 24
+                  targetSdk = 34
+                  versionCode = 1
+                  versionName = "1.0"
+              }
+
+              buildTypes {
+                  release {
+                      isMinifyEnabled = false
+                  }
+              }
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+              buildFeatures {
+                  compose = true
+              }
+          }
+
+          dependencies {
+              val composeBom = platform("androidx.compose:compose-bom:2024.09.00")
+              implementation(composeBom)
+              implementation("androidx.compose.ui:ui")
+              implementation("androidx.compose.material3:material3")
+              implementation("androidx.compose.material:material-icons-extended")
+              implementation("androidx.compose.ui:ui-tooling-preview")
+              debugImplementation("androidx.compose.ui:ui-tooling")
+
+              implementation("androidx.activity:activity-compose:1.9.2")
+              implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.6")
+              implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.6")
+              implementation("androidx.core:core-ktx:1.13.1")
+
+              val room = "2.6.1"
+              implementation("androidx.room:room-runtime:$room")
+              implementation("androidx.room:room-ktx:$room")
+              ksp("androidx.room:room-compiler:$room")
+          }
+          KONTEN_EOF
+          mkdir -p "KontenKu/app/src/main"
+          cat > "KontenKu/app/src/main/AndroidManifest.xml" <<'KONTEN_EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <application
+                  android:allowBackup="true"
+                  android:label="@string/app_name"
+                  android:supportsRtl="true"
+                  android:theme="@style/Theme.KontenKu">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+
+          </manifest>
+          KONTEN_EOF
+          mkdir -p "KontenKu/app/src/main/java/com/kontenku/app"
+          cat > "KontenKu/app/src/main/java/com/kontenku/app/MainActivity.kt" <<'KONTEN_EOF'
+          package com.kontenku.app
+
+          import android.os.Bundle
+          import androidx.activity.ComponentActivity
+          import androidx.activity.compose.setContent
+          import androidx.compose.foundation.layout.fillMaxSize
+          import androidx.compose.foundation.layout.padding
+          import androidx.compose.material.icons.Icons
+          import androidx.compose.material.icons.filled.DynamicFeed
+          import androidx.compose.material.icons.filled.EditNote
+          import androidx.compose.material.icons.filled.MenuBook
+          import androidx.compose.material3.Icon
+          import androidx.compose.material3.MaterialTheme
+          import androidx.compose.material3.NavigationBar
+          import androidx.compose.material3.NavigationBarItem
+          import androidx.compose.material3.Scaffold
+          import androidx.compose.material3.Surface
+          import androidx.compose.material3.Text
+          import androidx.compose.material3.lightColorScheme
+          import androidx.compose.runtime.Composable
+          import androidx.compose.runtime.getValue
+          import androidx.compose.runtime.mutableIntStateOf
+          import androidx.compose.runtime.saveable.rememberSaveable
+          import androidx.compose.runtime.setValue
+          import androidx.compose.ui.Modifier
+          import androidx.compose.ui.graphics.Color
+          import androidx.lifecycle.viewmodel.compose.viewModel
+          import com.kontenku.app.ui.FeedScreen
+          import com.kontenku.app.ui.LibraryScreen
+          import com.kontenku.app.ui.PlannerScreen
+
+          class MainActivity : ComponentActivity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  setContent {
+                      MaterialTheme(
+                          colorScheme = lightColorScheme(
+                              primary = Color(0xFF3F51B5),
+                              secondary = Color(0xFF00897B)
+                          )
+                      ) {
+                          Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                              KontenKuApp()
+                          }
+                      }
+                  }
+              }
+          }
+
+          private data class Tab(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
+
+          @Composable
+          fun KontenKuApp(vm: MainViewModel = viewModel()) {
+              val tabs = listOf(
+                  Tab("Perencana", Icons.Default.EditNote),
+                  Tab("Pustaka", Icons.Default.MenuBook),
+                  Tab("Feed", Icons.Default.DynamicFeed)
+              )
+              var selected by rememberSaveable { mutableIntStateOf(0) }
+
+              Scaffold(
+                  bottomBar = {
+                      NavigationBar {
+                          tabs.forEachIndexed { index, tab ->
+                              NavigationBarItem(
+                                  selected = selected == index,
+                                  onClick = { selected = index },
+                                  icon = { Icon(tab.icon, contentDescription = tab.label) },
+                                  label = { Text(tab.label) }
+                              )
+                          }
+                      }
+                  }
+              ) { padding ->
+                  val modifier = Modifier.padding(padding)
+                  when (selected) {
+                      0 -> PlannerScreen(vm, modifier)
+                      1 -> LibraryScreen(vm, modifier)
+                      else -> FeedScreen(vm, modifier)
+                  }
+              }
+          }
+          KONTEN_EOF
+          mkdir -p "KontenKu/app/src/main/java/com/kontenku/app"
+          cat > "KontenKu/app/src/main/java/com/kontenku/app/MainViewModel.kt" <<'KONTEN_EOF'
+          package com.kontenku.app
+
+          import android.app.Application
+          import androidx.lifecycle.AndroidViewModel
+          import androidx.lifecycle.viewModelScope
+          import com.kontenku.app.data.AppDatabase
+          import com.kontenku.app.data.Article
+          import com.kontenku.app.data.Comment
+          import com.kontenku.app.data.Idea
+          import com.kontenku.app.data.Post
+          import kotlinx.coroutines.flow.SharingStarted
+          import kotlinx.coroutines.flow.stateIn
+          import kotlinx.coroutines.launch
+
+          class MainViewModel(app: Application) : AndroidViewModel(app) {
+              private val dao = AppDatabase.get(app).dao()
+
+              val ideas = dao.ideas()
+                  .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+              val articles = dao.articles()
+                  .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+              val posts = dao.posts()
+                  .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+              val comments = dao.comments()
+                  .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+              init {
+                  viewModelScope.launch {
+                      if (dao.articleCount() == 0) dao.insertArticles(seedArticles)
+                  }
+              }
+
+              // Perencana
+              fun saveIdea(idea: Idea) = viewModelScope.launch { dao.upsertIdea(idea) }
+              fun deleteIdea(idea: Idea) = viewModelScope.launch { dao.deleteIdea(idea) }
+
+              // Pustaka
+              fun saveArticle(article: Article) = viewModelScope.launch { dao.upsertArticle(article) }
+              fun deleteArticle(article: Article) = viewModelScope.launch { dao.deleteArticle(article) }
+              fun toggleBookmark(article: Article) =
+                  saveArticle(article.copy(bookmarked = !article.bookmarked))
+
+              // Feed
+              fun addPost(text: String) = viewModelScope.launch { dao.upsertPost(Post(text = text)) }
+              fun deletePost(post: Post) = viewModelScope.launch {
+                  dao.deleteComments(post.id)
+                  dao.deletePost(post)
+              }
+              fun toggleLike(post: Post) = viewModelScope.launch {
+                  val nowLiked = !post.liked
+                  dao.upsertPost(
+                      post.copy(liked = nowLiked, likes = (post.likes + if (nowLiked) 1 else -1).coerceAtLeast(0))
+                  )
+              }
+              fun addComment(postId: Long, text: String) =
+                  viewModelScope.launch { dao.insertComment(Comment(postId = postId, text = text)) }
+
+              private val seedArticles = listOf(
+                  Article(
+                      title = "5 Detik Pertama: Kunci Hook yang Menahan Penonton",
+                      category = "Tips Video",
+                      body = "Penonton memutuskan lanjut atau tidak dalam beberapa detik pertama. " +
+                          "Mulai dari bagian paling menarik atau pertanyaan yang memancing rasa penasaran, " +
+                          "bukan dari perkenalan panjang.\n\n" +
+                          "Coba tiga pola: (1) hasil akhir dulu, baru prosesnya; (2) pertanyaan yang dekat " +
+                          "dengan masalah penonton; (3) pernyataan yang berlawanan dengan anggapan umum."
+                  ),
+                  Article(
+                      title = "Menyusun Kalender Konten Mingguan yang Realistis",
+                      category = "Perencanaan",
+                      body = "Konsistensi lebih penting daripada jumlah. Tentukan berapa konten yang sanggup " +
+                          "kamu buat per minggu, lalu kelompokkan pekerjaannya: hari riset dan naskah, " +
+                          "hari syuting, hari edit, hari upload.\n\n" +
+                          "Menyiapkan beberapa konten sekaligus (batching) menghemat waktu dan menjaga " +
+                          "jadwal tetap jalan saat kamu sedang sibuk."
+                  ),
+                  Article(
+                      title = "Storytelling Sederhana: Awal, Konflik, Penyelesaian",
+                      category = "Naskah",
+                      body = "Cerita yang baik tidak harus rumit. Kenalkan situasi, munculkan masalah atau " +
+                          "halangan, lalu tunjukkan bagaimana masalah itu diselesaikan.\n\n" +
+                          "Tambahkan detail kecil yang spesifik (tempat, waktu, perasaan) supaya penonton " +
+                          "bisa membayangkan dan merasa dekat dengan ceritamu."
+                  )
+              )
+          }
+          KONTEN_EOF
+          mkdir -p "KontenKu/app/src/main/java/com/kontenku/app/data"
+          cat > "KontenKu/app/src/main/java/com/kontenku/app/data/AppDatabase.kt" <<'KONTEN_EOF'
+          package com.kontenku.app.data
+
+          import android.content.Context
+          import androidx.room.Dao
+          import androidx.room.Database
+          import androidx.room.Delete
+          import androidx.room.Insert
+          import androidx.room.OnConflictStrategy
+          import androidx.room.Query
+          import androidx.room.Room
+          import androidx.room.RoomDatabase
+          import kotlinx.coroutines.flow.Flow
+
+          @Dao
+          interface ContentDao {
+              @Query("SELECT * FROM ideas ORDER BY createdAt DESC")
+              fun ideas(): Flow<List<Idea>>
+
+              @Insert(onConflict = OnConflictStrategy.REPLACE)
+              suspend fun upsertIdea(idea: Idea)
+
+              @Delete
+              suspend fun deleteIdea(idea: Idea)
+
+              @Query("SELECT * FROM articles ORDER BY id")
+              fun articles(): Flow<List<Article>>
+
+              @Query("SELECT COUNT(*) FROM articles")
+              suspend fun articleCount(): Int
+
+              @Insert(onConflict = OnConflictStrategy.REPLACE)
+              suspend fun upsertArticle(article: Article)
+
+              @Insert
+              suspend fun insertArticles(list: List<Article>)
+
+              @Delete
+              suspend fun deleteArticle(article: Article)
+
+              @Query("SELECT * FROM posts ORDER BY createdAt DESC")
+              fun posts(): Flow<List<Post>>
+
+              @Insert(onConflict = OnConflictStrategy.REPLACE)
+              suspend fun upsertPost(post: Post)
+
+              @Delete
+              suspend fun deletePost(post: Post)
+
+              @Query("SELECT * FROM comments ORDER BY id")
+              fun comments(): Flow<List<Comment>>
+
+              @Insert
+              suspend fun insertComment(comment: Comment)
+
+              @Query("DELETE FROM comments WHERE postId = :postId")
+              suspend fun deleteComments(postId: Long)
+          }
+
+          @Database(
+              entities = [Idea::class, Article::class, Post::class, Comment::class],
+              version = 1,
+              exportSchema = false
+          )
+          abstract class AppDatabase : RoomDatabase() {
+              abstract fun dao(): ContentDao
+
+              companion object {
+                  @Volatile private var instance: AppDatabase? = null
+
+                  fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
+                      instance ?: Room.databaseBuilder(
+                          context.applicationContext,
+                          AppDatabase::class.java,
+                          "kontenku.db"
+                      ).build().also { instance = it }
+                  }
+              }
+          }
+          KONTEN_EOF
+          mkdir -p "KontenKu/app/src/main/java/com/kontenku/app/data"
+          cat > "KontenKu/app/src/main/java/com/kontenku/app/data/Entities.kt" <<'KONTEN_EOF'
+          package com.kontenku.app.data
+
+          import androidx.room.Entity
+          import androidx.room.PrimaryKey
+
+          val PLATFORMS = listOf("YouTube", "TikTok", "Instagram", "Facebook")
+          val STATUSES = listOf("Ide", "Syuting", "Edit", "Upload")
+
+          @Entity(tableName = "ideas")
+          data class Idea(
+              @PrimaryKey(autoGenerate = true) val id: Long = 0,
+              val title: String,
+              val platform: String = PLATFORMS.first(),
+              val status: String = STATUSES.first(),
+              val script: String = "",
+              val footage: String = "",
+              val schedule: String = "",
+              val createdAt: Long = System.currentTimeMillis()
+          )
+
+          @Entity(tableName = "articles")
+          data class Article(
+              @PrimaryKey(autoGenerate = true) val id: Long = 0,
+              val title: String,
+              val category: String,
+              val body: String,
+              val bookmarked: Boolean = false
+          )
+
+          @Entity(tableName = "posts")
+          data class Post(
+              @PrimaryKey(autoGenerate = true) val id: Long = 0,
+              val text: String,
+              val likes: Int = 0,
+              val liked: Boolean = false,
+              val createdAt: Long = System.currentTimeMillis()
+          )
+
+          @Entity(tableName = "comments")
+          data class Comment(
+              @PrimaryKey(autoGenerate = true) val id: Long = 0,
+              val postId: Long,
+              val text: String
+          )
+          KONTEN_EOF
+          mkdir -p "KontenKu/app/src/main/java/com/kontenku/app/ui"
+          cat > "KontenKu/app/src/main/java/com/kontenku/app/ui/FeedScreen.kt" <<'KONTEN_EOF'
+          package com.kontenku.app.ui
+
+          import androidx.compose.foundation.layout.Arrangement
+          import androidx.compose.foundation.layout.Box
+          import androidx.compose.foundation.layout.Column
+          import androidx.compose.foundation.layout.PaddingValues
+          import androidx.compose.foundation.layout.Row
+          import androidx.compose.foundation.layout.fillMaxSize
+          import androidx.compose.foundation.layout.fillMaxWidth
+          import androidx.compose.foundation.layout.padding
+          import androidx.compose.foundation.lazy.LazyColumn
+          import androidx.compose.foundation.lazy.items
+          import androidx.compose.material.icons.Icons
+          import androidx.compose.material.icons.filled.ChatBubbleOutline
+          import androidx.compose.material.icons.filled.Delete
+          import androidx.compose.material.icons.filled.Favorite
+          import androidx.compose.material.icons.filled.FavoriteBorder
+          import androidx.compose.material.icons.filled.Send
+          import androidx.compose.material3.Button
+          import androidx.compose.material3.Card
+          import androidx.compose.material3.Icon
+          import androidx.compose.material3.IconButton
+          import androidx.compose.material3.MaterialTheme
+          import androidx.compose.material3.OutlinedTextField
+          import androidx.compose.material3.Text
+          import androidx.compose.material3.TextButton
+          import androidx.compose.runtime.Composable
+          import androidx.compose.runtime.getValue
+          import androidx.compose.runtime.mutableStateOf
+          import androidx.compose.runtime.remember
+          import androidx.compose.runtime.setValue
+          import androidx.compose.ui.Alignment
+          import androidx.compose.ui.Modifier
+          import androidx.compose.ui.unit.dp
+          import androidx.lifecycle.compose.collectAsStateWithLifecycle
+          import com.kontenku.app.MainViewModel
+          import com.kontenku.app.data.Post
+
+          @Composable
+          fun FeedScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
+              val posts by vm.posts.collectAsStateWithLifecycle()
+              val comments by vm.comments.collectAsStateWithLifecycle()
+              var draft by remember { mutableStateOf("") }
+
+              Column(modifier.fillMaxSize()) {
+                  Text(
+                      "Feed",
+                      style = MaterialTheme.typography.headlineSmall,
+                      modifier = Modifier.padding(16.dp)
+                  )
+                  Row(
+                      Modifier.padding(horizontal = 16.dp),
+                      verticalAlignment = Alignment.CenterVertically,
+                      horizontalArrangement = Arrangement.spacedBy(8.dp)
+                  ) {
+                      OutlinedTextField(
+                          value = draft,
+                          onValueChange = { draft = it },
+                          placeholder = { Text("Apa yang ingin kamu bagikan?") },
+                          modifier = Modifier.weight(1f)
+                      )
+                      Button(
+                          enabled = draft.isNotBlank(),
+                          onClick = { vm.addPost(draft.trim()); draft = "" }
+                      ) { Text("Posting") }
+                  }
+
+                  if (posts.isEmpty()) {
+                      Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                          Text("Belum ada postingan.")
+                      }
+                  } else {
+                      LazyColumn(
+                          contentPadding = PaddingValues(16.dp),
+                          verticalArrangement = Arrangement.spacedBy(10.dp)
+                      ) {
+                          items(posts, key = { it.id }) { post ->
+                              PostCard(
+                                  post = post,
+                                  comments = comments.filter { it.postId == post.id }.map { it.text },
+                                  onLike = { vm.toggleLike(post) },
+                                  onDelete = { vm.deletePost(post) },
+                                  onComment = { vm.addComment(post.id, it) }
+                              )
+                          }
+                      }
+                  }
+              }
+          }
+
+          @Composable
+          private fun PostCard(
+              post: Post,
+              comments: List<String>,
+              onLike: () -> Unit,
+              onDelete: () -> Unit,
+              onComment: (String) -> Unit
+          ) {
+              var expanded by remember { mutableStateOf(false) }
+              var draft by remember { mutableStateOf("") }
+
+              Card(Modifier.fillMaxWidth()) {
+                  Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                      Text(post.text, style = MaterialTheme.typography.bodyLarge)
+                      Row(verticalAlignment = Alignment.CenterVertically) {
+                          IconButton(onClick = onLike) {
+                              Icon(
+                                  if (post.liked) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                  contentDescription = "Suka",
+                                  tint = if (post.liked) MaterialTheme.colorScheme.error
+                                  else MaterialTheme.colorScheme.onSurfaceVariant
+                              )
+                          }
+                          Text("${post.likes}")
+                          IconButton(onClick = { expanded = !expanded }) {
+                              Icon(Icons.Default.ChatBubbleOutline, contentDescription = "Komentar")
+                          }
+                          Text("${comments.size}")
+                          Box(Modifier.weight(1f))
+                          IconButton(onClick = onDelete) {
+                              Icon(Icons.Default.Delete, contentDescription = "Hapus")
+                          }
+                      }
+                      if (expanded) {
+                          comments.forEach {
+                              Text("• $it", style = MaterialTheme.typography.bodyMedium)
+                          }
+                          Row(verticalAlignment = Alignment.CenterVertically) {
+                              OutlinedTextField(
+                                  value = draft,
+                                  onValueChange = { draft = it },
+                                  placeholder = { Text("Tulis komentar") },
+                                  modifier = Modifier.weight(1f)
+                              )
+                              IconButton(
+                                  enabled = draft.isNotBlank(),
+                                  onClick = { onComment(draft.trim()); draft = "" }
+                              ) {
+                                  Icon(Icons.Default.Send, contentDescription = "Kirim")
+                              }
+                          }
+                      }
+                  }
+              }
+          }
+          KONTEN_EOF
+          mkdir -p "KontenKu/app/src/main/java/com/kontenku/app/ui"
+          cat > "KontenKu/app/src/main/java/com/kontenku/app/ui/LibraryScreen.kt" <<'KONTEN_EOF'
+          package com.kontenku.app.ui
+
+          import androidx.compose.foundation.clickable
+          import androidx.compose.foundation.layout.Arrangement
+          import androidx.compose.foundation.layout.Box
+          import androidx.compose.foundation.layout.Column
+          import androidx.compose.foundation.layout.PaddingValues
+          import androidx.compose.foundation.layout.Row
+          import androidx.compose.foundation.layout.fillMaxSize
+          import androidx.compose.foundation.layout.fillMaxWidth
+          import androidx.compose.foundation.layout.padding
+          import androidx.compose.foundation.lazy.LazyColumn
+          import androidx.compose.foundation.lazy.items
+          import androidx.compose.foundation.rememberScrollState
+          import androidx.compose.foundation.verticalScroll
+          import androidx.compose.material.icons.Icons
+          import androidx.compose.material.icons.filled.Add
+          import androidx.compose.material.icons.filled.Bookmark
+          import androidx.compose.material.icons.filled.BookmarkBorder
+          import androidx.compose.material3.AlertDialog
+          import androidx.compose.material3.Card
+          import androidx.compose.material3.ExtendedFloatingActionButton
+          import androidx.compose.material3.FilterChip
+          import androidx.compose.material3.Icon
+          import androidx.compose.material3.IconButton
+          import androidx.compose.material3.MaterialTheme
+          import androidx.compose.material3.OutlinedTextField
+          import androidx.compose.material3.Text
+          import androidx.compose.material3.TextButton
+          import androidx.compose.runtime.Composable
+          import androidx.compose.runtime.getValue
+          import androidx.compose.runtime.mutableStateOf
+          import androidx.compose.runtime.remember
+          import androidx.compose.runtime.setValue
+          import androidx.compose.ui.Alignment
+          import androidx.compose.ui.Modifier
+          import androidx.compose.ui.text.style.TextOverflow
+          import androidx.compose.ui.unit.dp
+          import androidx.lifecycle.compose.collectAsStateWithLifecycle
+          import com.kontenku.app.MainViewModel
+          import com.kontenku.app.data.Article
+
+          @Composable
+          fun LibraryScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
+              val articles by vm.articles.collectAsStateWithLifecycle()
+              var onlySaved by remember { mutableStateOf(false) }
+              var reading by remember { mutableStateOf<Article?>(null) }
+              var showAdd by remember { mutableStateOf(false) }
+
+              val shown = if (onlySaved) articles.filter { it.bookmarked } else articles
+
+              Box(modifier.fillMaxSize()) {
+                  Column(Modifier.fillMaxSize()) {
+                      Text(
+                          "Pustaka Konten",
+                          style = MaterialTheme.typography.headlineSmall,
+                          modifier = Modifier.padding(16.dp)
+                      )
+                      Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                          FilterChip(selected = !onlySaved, onClick = { onlySaved = false }, label = { Text("Semua") })
+                          FilterChip(selected = onlySaved, onClick = { onlySaved = true }, label = { Text("Tersimpan") })
+                      }
+                      if (shown.isEmpty()) {
+                          Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                              Text(if (onlySaved) "Belum ada artikel tersimpan." else "Belum ada artikel.")
+                          }
+                      } else {
+                          LazyColumn(
+                              contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 96.dp),
+                              verticalArrangement = Arrangement.spacedBy(10.dp)
+                          ) {
+                              items(shown, key = { it.id }) { article ->
+                                  Card(Modifier.fillMaxWidth().clickable { reading = article }) {
+                                      Row(
+                                          Modifier.padding(start = 14.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
+                                          verticalAlignment = Alignment.CenterVertically
+                                      ) {
+                                          Column(Modifier.weight(1f)) {
+                                              Text(article.category, style = MaterialTheme.typography.labelMedium,
+                                                  color = MaterialTheme.colorScheme.primary)
+                                              Text(article.title, style = MaterialTheme.typography.titleMedium)
+                                              Text(
+                                                  article.body,
+                                                  style = MaterialTheme.typography.bodySmall,
+                                                  maxLines = 2,
+                                                  overflow = TextOverflow.Ellipsis
+                                              )
+                                          }
+                                          IconButton(onClick = { vm.toggleBookmark(article) }) {
+                                              Icon(
+                                                  if (article.bookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                                                  contentDescription = "Bookmark"
+                                              )
+                                          }
+                                      }
+                                  }
+                              }
+                          }
+                      }
+                  }
+                  ExtendedFloatingActionButton(
+                      onClick = { showAdd = true },
+                      icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                      text = { Text("Artikel") },
+                      modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)
+                  )
+              }
+
+              reading?.let { article ->
+                  AlertDialog(
+                      onDismissRequest = { reading = null },
+                      title = { Text(article.title) },
+                      text = {
+                          Text(article.body, modifier = Modifier.verticalScroll(rememberScrollState()))
+                      },
+                      confirmButton = { TextButton(onClick = { reading = null }) { Text("Tutup") } },
+                      dismissButton = {
+                          TextButton(onClick = { vm.deleteArticle(article); reading = null }) { Text("Hapus") }
+                      }
+                  )
+              }
+
+              if (showAdd) {
+                  var title by remember { mutableStateOf("") }
+                  var category by remember { mutableStateOf("") }
+                  var body by remember { mutableStateOf("") }
+                  AlertDialog(
+                      onDismissRequest = { showAdd = false },
+                      title = { Text("Artikel baru") },
+                      text = {
+                          Column(
+                              Modifier.verticalScroll(rememberScrollState()),
+                              verticalArrangement = Arrangement.spacedBy(8.dp)
+                          ) {
+                              OutlinedTextField(title, { title = it }, label = { Text("Judul") },
+                                  singleLine = true, modifier = Modifier.fillMaxWidth())
+                              OutlinedTextField(category, { category = it }, label = { Text("Kategori") },
+                                  singleLine = true, modifier = Modifier.fillMaxWidth())
+                              OutlinedTextField(body, { body = it }, label = { Text("Isi") },
+                                  minLines = 5, modifier = Modifier.fillMaxWidth())
+                          }
+                      },
+                      confirmButton = {
+                          TextButton(
+                              enabled = title.isNotBlank() && body.isNotBlank(),
+                              onClick = {
+                                  vm.saveArticle(
+                                      Article(
+                                          title = title.trim(),
+                                          category = category.trim().ifBlank { "Umum" },
+                                          body = body
+                                      )
+                                  )
+                                  showAdd = false
+                              }
+                          ) { Text("Simpan") }
+                      },
+                      dismissButton = { TextButton(onClick = { showAdd = false }) { Text("Batal") } }
+                  )
+              }
+          }
+          KONTEN_EOF
+          mkdir -p "KontenKu/app/src/main/java/com/kontenku/app/ui"
+          cat > "KontenKu/app/src/main/java/com/kontenku/app/ui/PlannerScreen.kt" <<'KONTEN_EOF'
+          package com.kontenku.app.ui
+
+          import androidx.compose.foundation.clickable
+          import androidx.compose.foundation.horizontalScroll
+          import androidx.compose.foundation.layout.Arrangement
+          import androidx.compose.foundation.layout.Box
+          import androidx.compose.foundation.layout.Column
+          import androidx.compose.foundation.layout.Row
+          import androidx.compose.foundation.layout.fillMaxSize
+          import androidx.compose.foundation.layout.fillMaxWidth
+          import androidx.compose.foundation.layout.padding
+          import androidx.compose.foundation.lazy.LazyColumn
+          import androidx.compose.foundation.lazy.items
+          import androidx.compose.foundation.rememberScrollState
+          import androidx.compose.foundation.verticalScroll
+          import androidx.compose.material.icons.Icons
+          import androidx.compose.material.icons.filled.Add
+          import androidx.compose.material3.AlertDialog
+          import androidx.compose.material3.AssistChip
+          import androidx.compose.material3.Card
+          import androidx.compose.material3.ExperimentalMaterial3Api
+          import androidx.compose.material3.ExtendedFloatingActionButton
+          import androidx.compose.material3.FilterChip
+          import androidx.compose.material3.Icon
+          import androidx.compose.material3.MaterialTheme
+          import androidx.compose.material3.OutlinedTextField
+          import androidx.compose.material3.Text
+          import androidx.compose.material3.TextButton
+          import androidx.compose.runtime.Composable
+          import androidx.compose.runtime.getValue
+          import androidx.compose.runtime.mutableStateOf
+          import androidx.compose.runtime.remember
+          import androidx.compose.runtime.setValue
+          import androidx.compose.ui.Alignment
+          import androidx.compose.ui.Modifier
+          import androidx.compose.ui.unit.dp
+          import androidx.lifecycle.compose.collectAsStateWithLifecycle
+          import com.kontenku.app.MainViewModel
+          import com.kontenku.app.data.Idea
+          import com.kontenku.app.data.PLATFORMS
+          import com.kontenku.app.data.STATUSES
+
+          @Composable
+          fun PlannerScreen(vm: MainViewModel, modifier: Modifier = Modifier) {
+              val ideas by vm.ideas.collectAsStateWithLifecycle()
+              var editing by remember { mutableStateOf<Idea?>(null) }
+              var showDialog by remember { mutableStateOf(false) }
+              var filter by remember { mutableStateOf<String?>(null) }
+
+              val shown = if (filter == null) ideas else ideas.filter { it.status == filter }
+
+              Box(modifier.fillMaxSize()) {
+                  Column(Modifier.fillMaxSize()) {
+                      Text(
+                          "Perencana Konten",
+                          style = MaterialTheme.typography.headlineSmall,
+                          modifier = Modifier.padding(16.dp)
+                      )
+                      Row(
+                          Modifier
+                              .horizontalScrollCompat()
+                              .padding(horizontal = 16.dp),
+                          horizontalArrangement = Arrangement.spacedBy(8.dp)
+                      ) {
+                          FilterChip(
+                              selected = filter == null,
+                              onClick = { filter = null },
+                              label = { Text("Semua") }
+                          )
+                          STATUSES.forEach { s ->
+                              FilterChip(
+                                  selected = filter == s,
+                                  onClick = { filter = if (filter == s) null else s },
+                                  label = { Text(s) }
+                              )
+                          }
+                      }
+                      if (shown.isEmpty()) {
+                          Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                              Text("Belum ada ide. Tekan tombol + untuk menambah.")
+                          }
+                      } else {
+                          LazyColumn(
+                              contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                  start = 16.dp, end = 16.dp, top = 12.dp, bottom = 96.dp
+                              ),
+                              verticalArrangement = Arrangement.spacedBy(10.dp)
+                          ) {
+                              items(shown, key = { it.id }) { idea ->
+                                  IdeaCard(idea) {
+                                      editing = idea
+                                      showDialog = true
+                                  }
+                              }
+                          }
+                      }
+                  }
+                  ExtendedFloatingActionButton(
+                      onClick = { editing = null; showDialog = true },
+                      icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                      text = { Text("Ide baru") },
+                      modifier = Modifier
+                          .align(Alignment.BottomEnd)
+                          .padding(16.dp)
+                  )
+              }
+
+              if (showDialog) {
+                  IdeaDialog(
+                      initial = editing,
+                      onDismiss = { showDialog = false },
+                      onSave = { vm.saveIdea(it); showDialog = false },
+                      onDelete = { idea -> vm.deleteIdea(idea); showDialog = false }
+                  )
+              }
+          }
+
+          @OptIn(ExperimentalMaterial3Api::class)
+          @Composable
+          private fun IdeaCard(idea: Idea, onClick: () -> Unit) {
+              Card(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+                  Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                      Text(idea.title, style = MaterialTheme.typography.titleMedium)
+                      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                          AssistChip(onClick = onClick, label = { Text(idea.platform) })
+                          AssistChip(onClick = onClick, label = { Text(idea.status) })
+                      }
+                      if (idea.schedule.isNotBlank()) {
+                          Text("Jadwal: ${idea.schedule}", style = MaterialTheme.typography.bodySmall)
+                      }
+                      if (idea.footage.isNotBlank()) {
+                          Text(
+                              "Footage: ${idea.footage}",
+                              style = MaterialTheme.typography.bodySmall,
+                              maxLines = 2
+                          )
+                      }
+                  }
+              }
+          }
+
+          @Composable
+          private fun IdeaDialog(
+              initial: Idea?,
+              onDismiss: () -> Unit,
+              onSave: (Idea) -> Unit,
+              onDelete: (Idea) -> Unit
+          ) {
+              var title by remember { mutableStateOf(initial?.title ?: "") }
+              var platform by remember { mutableStateOf(initial?.platform ?: PLATFORMS.first()) }
+              var status by remember { mutableStateOf(initial?.status ?: STATUSES.first()) }
+              var schedule by remember { mutableStateOf(initial?.schedule ?: "") }
+              var script by remember { mutableStateOf(initial?.script ?: "") }
+              var footage by remember { mutableStateOf(initial?.footage ?: "") }
+
+              AlertDialog(
+                  onDismissRequest = onDismiss,
+                  title = { Text(if (initial == null) "Ide baru" else "Edit ide") },
+                  text = {
+                      Column(
+                          Modifier.verticalScroll(rememberScrollState()),
+                          verticalArrangement = Arrangement.spacedBy(8.dp)
+                      ) {
+                          OutlinedTextField(
+                              value = title, onValueChange = { title = it },
+                              label = { Text("Judul") }, singleLine = true,
+                              modifier = Modifier.fillMaxWidth()
+                          )
+                          Text("Platform", style = MaterialTheme.typography.labelMedium)
+                          Row(Modifier.horizontalScrollCompat(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                              PLATFORMS.forEach {
+                                  FilterChip(selected = platform == it, onClick = { platform = it }, label = { Text(it) })
+                              }
+                          }
+                          Text("Status", style = MaterialTheme.typography.labelMedium)
+                          Row(Modifier.horizontalScrollCompat(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                              STATUSES.forEach {
+                                  FilterChip(selected = status == it, onClick = { status = it }, label = { Text(it) })
+                              }
+                          }
+                          OutlinedTextField(
+                              value = schedule, onValueChange = { schedule = it },
+                              label = { Text("Jadwal posting (mis. 25 Nov, 19.00)") }, singleLine = true,
+                              modifier = Modifier.fillMaxWidth()
+                          )
+                          OutlinedTextField(
+                              value = script, onValueChange = { script = it },
+                              label = { Text("Script / naskah") }, minLines = 4,
+                              modifier = Modifier.fillMaxWidth()
+                          )
+                          OutlinedTextField(
+                              value = footage, onValueChange = { footage = it },
+                              label = { Text("Daftar footage") }, minLines = 3,
+                              modifier = Modifier.fillMaxWidth()
+                          )
+                      }
+                  },
+                  confirmButton = {
+                      TextButton(
+                          enabled = title.isNotBlank(),
+                          onClick = {
+                              val base = initial ?: Idea(title = title)
+                              onSave(
+                                  base.copy(
+                                      title = title.trim(), platform = platform, status = status,
+                                      schedule = schedule.trim(), script = script, footage = footage
+                                  )
+                              )
+                          }
+                      ) { Text("Simpan") }
+                  },
+                  dismissButton = {
+                      Row {
+                          if (initial != null) TextButton(onClick = { onDelete(initial) }) { Text("Hapus") }
+                          TextButton(onClick = onDismiss) { Text("Batal") }
+                      }
+                  }
+              )
+          }
+
+          @Composable
+          internal fun Modifier.horizontalScrollCompat(): Modifier =
+              this.then(Modifier.horizontalScroll(rememberScrollState()))
+          KONTEN_EOF
+          mkdir -p "KontenKu/app/src/main/res/values"
+          cat > "KontenKu/app/src/main/res/values/strings.xml" <<'KONTEN_EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">KontenKu</string>
+          </resources>
+          KONTEN_EOF
+          mkdir -p "KontenKu/app/src/main/res/values"
+          cat > "KontenKu/app/src/main/res/values/themes.xml" <<'KONTEN_EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="Theme.KontenKu" parent="android:Theme.Material.Light.NoActionBar" />
+          </resources>
+          KONTEN_EOF
+          mkdir -p "KontenKu/"
+          cat > "KontenKu/build.gradle.kts" <<'KONTEN_EOF'
+          plugins {
+              id("com.android.application") version "8.5.2" apply false
+              id("org.jetbrains.kotlin.android") version "2.0.20" apply false
+              id("org.jetbrains.kotlin.plugin.compose") version "2.0.20" apply false
+              id("com.google.devtools.ksp") version "2.0.20-1.0.25" apply false
+          }
+          KONTEN_EOF
+          mkdir -p "KontenKu/"
+          cat > "KontenKu/gradle.properties" <<'KONTEN_EOF'
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          kotlin.code.style=official
+          android.nonTransitiveRClass=true
+          KONTEN_EOF
+          mkdir -p "KontenKu/"
+          cat > "KontenKu/settings.gradle.kts" <<'KONTEN_EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "KontenKu"
+          include(":app")
+          KONTEN_EOF
 
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-      - uses: android-actions/setup-android@v3
+      - name: Terima lisensi Android SDK
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.7
 
       - name: Build APK debug
-        working-directory: ${{ env.PROJECT_DIR }}
+        working-directory: KontenKu
         run: gradle :app:assembleDebug --no-daemon
 
       - uses: actions/upload-artifact@v4
         with:
           name: KontenKu-APK
-          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
+          path: KontenKu/app/build/outputs/apk/debug/app-debug.apk
