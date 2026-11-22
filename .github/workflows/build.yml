@@ -11,8 +11,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Ekstrak proyek dari ZIP
-        run: unzip -q KontenKu.zip
+      - name: Siapkan proyek
+        run: |
+          echo "Isi repositori:"
+          ls -la
+          if [ -z "$(find . -name settings.gradle.kts -not -path './.git/*')" ]; then
+            ZIP=$(find . -maxdepth 1 -name '*.zip' | head -n 1)
+            if [ -z "$ZIP" ]; then
+              echo "ERROR: tidak ada file ZIP maupun folder proyek di repositori."
+              echo "Upload KontenKu.zip ke halaman utama repositori, lalu jalankan lagi."
+              exit 1
+            fi
+            echo "Mengekstrak: $ZIP"
+            unzip -q "$ZIP"
+          fi
+          SETTINGS=$(find . -name settings.gradle.kts -not -path './.git/*' | head -n 1)
+          if [ -z "$SETTINGS" ]; then
+            echo "ERROR: settings.gradle.kts tidak ditemukan di dalam proyek."
+            exit 1
+          fi
+          DIR=$(dirname "$SETTINGS")
+          echo "Folder proyek: $DIR"
+          echo "PROJECT_DIR=$DIR" >> "$GITHUB_ENV"
 
       - uses: actions/setup-java@v4
         with:
@@ -26,10 +46,10 @@ jobs:
           gradle-version: 8.7
 
       - name: Build APK debug
-        working-directory: KontenKu
+        working-directory: ${{ env.PROJECT_DIR }}
         run: gradle :app:assembleDebug --no-daemon
 
       - uses: actions/upload-artifact@v4
         with:
           name: KontenKu-APK
-          path: KontenKu/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
